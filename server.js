@@ -1,17 +1,46 @@
+require('dotenv').config();
+
 const express = require("express");
 const sqlite3 = require("sqlite3").verbose();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 app.use(express.json());
 app.use(express.static("public"));
 
+// ============================================================
+// VARIABLES DE ENTORNO
+// ============================================================
 const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET;
+const ADMIN_SECRET = process.env.ADMIN_SECRET;
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
-// SECRETS
-const JWT_SECRET = process.env.JWT_SECRET || "sda_super_secret_key_change_me_12345";
-const ADMIN_SECRET = process.env.ADMIN_SECRET || "sda_admin_secret_key_change_me_67890";
+// Validar que existen todas las variables necesarias
+if (!JWT_SECRET || !ADMIN_SECRET) {
+    console.error("❌ Faltan JWT_SECRET o ADMIN_SECRET en .env");
+    process.exit(1);
+}
+
+if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
+    console.error("❌ Faltan ADMIN_EMAIL o ADMIN_PASSWORD en .env");
+    process.exit(1);
+}
+
+console.log("✅ Variables de entorno cargadas correctamente");
+
+// ============================================================
+// RATE LIMITING para admin login
+// ============================================================
+const adminLoginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 5, // 5 intentos fallidos
+    message: { success: false, message: "Demasiados intentos. Espera 15 minutos." },
+    skipSuccessfulRequests: true
+});
 
 const db = new sqlite3.Database("./smart_users.db");
 
@@ -56,8 +85,9 @@ db.serialize(() => {
     )
   `);
 
-  const adminEmail = "admin@smart.local";
-  const adminPassword = "Admin123456";
+  // 🔥 USANDO CREDENCIALES DEL .env
+  const adminEmail = ADMIN_EMAIL;
+  const adminPassword = ADMIN_PASSWORD;
   const adminHash = bcrypt.hashSync(adminPassword, 10);
 
   db.run(
@@ -264,7 +294,8 @@ app.get("/api/auth/validate", verifyToken, (req, res) => {
 // ENDPOINTS DE ADMIN
 // ============================================================
 
-app.post("/api/admin/login", (req, res) => {
+// 🔥 ADMIN LOGIN CON RATE LIMITING
+app.post("/api/admin/login", adminLoginLimiter, (req, res) => {
   const { email, password } = req.body;
 
   db.get("SELECT * FROM admins WHERE email = ?", [email], (err, admin) => {
@@ -374,11 +405,17 @@ app.get("/test", (req, res) => {
 });
 
 // ============================================================
+// RUTA OCULTA PARA PANEL ADMIN
+// ============================================================
+app.get("/sda-control-panel", (req, res) => {
+  res.sendFile(__dirname + "/public/admin.html");
+});
+
+// ============================================================
 // INICIAR SERVIDOR
 // ============================================================
 app.listen(PORT, () => {
-  console.log(`Smart backend running on http://localhost:${PORT}`);
-  console.log("Admin login:");
-  console.log("Email: admin@smart.local");
-  console.log("Password: Admin123456");
+  console.log(`✅ Smart backend running on http://localhost:${PORT}`);
+  console.log("📊 Panel Admin: http://localhost:" + PORT + "/sda-control-panel");
+  console.log("🔐 Admin login con credenciales del .env");
 });

@@ -7,11 +7,11 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: #1a1a2e;  /* 🔥 COLOR ORIGINAL */
-    color: #eee;
-    padding: 20px;
-}
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 20px;
+        }
         .container { max-width: 1400px; margin: 0 auto; }
         
         .login-box {
@@ -89,6 +89,42 @@
             font-weight: bold;
         }
         
+        /* 🔥 BARRA DE BÚSQUEDA Y FILTROS */
+        .search-bar {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .search-bar input {
+            flex: 2;
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            background: #0f3460;
+            color: white;
+        }
+        .search-bar select {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            background: #0f3460;
+            color: white;
+        }
+        .search-bar button {
+            padding: 10px 20px;
+            background: #0f0;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
         table {
             width: 100%;
             background: #16213e;
@@ -100,7 +136,12 @@
             text-align: left;
             border-bottom: 1px solid #0f3460;
         }
-        th { background: #0f3460; }
+        th { 
+            background: #0f3460; 
+            cursor: pointer;
+            user-select: none;
+        }
+        th:hover { background: #1a4a7a; }
         
         .status-active { color: #0f0; }
         .status-blocked { color: #f00; }
@@ -135,6 +176,7 @@
         .action-bar { margin-bottom: 15px; display: flex; gap: 10px; align-items: center; }
         
         .premium-time { font-family: monospace; font-weight: bold; }
+        .sort-icon { font-size: 12px; margin-left: 5px; }
     </style>
 </head>
 <body>
@@ -169,11 +211,24 @@
                 <button onclick="createUser()">Crear Usuario</button>
             </div>
 
+            <!-- 🔥 BARRA DE BÚSQUEDA Y FILTROS -->
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="🔍 Buscar por email..." onkeyup="filterAndRender()">
+                <select id="statusFilter" onchange="filterAndRender()">
+                    <option value="all">📋 Todos</option>
+                    <option value="active">🟢 Activos</option>
+                    <option value="blocked">🔴 Bloqueados</option>
+                    <option value="expired">⚠️ Expirados</option>
+                </select>
+                <button onclick="resetFilters()">🔄 Resetear filtros</button>
+            </div>
+
             <div class="action-bar">
                 <label style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll()">
                     <strong>Seleccionar todos</strong>
                 </label>
+                <span id="filterInfo" style="color: #ffa500; font-size: 12px;"></span>
             </div>
 
             <h3>📋 Usuarios registrados</h3>
@@ -183,11 +238,11 @@
                         <tr>
                             <th class="checkbox-col">✓</th>
                             <th>ID</th>
-                            <th>Email</th>
+                            <th onclick="sortBy('email')" style="cursor: pointer;">Email <span id="sort-email" class="sort-icon">↕️</span></th>
                             <th>Estado</th>
                             <th>Device ID</th>
-                            <th>Expira</th>
-                            <th>Tiempo restante</th>
+                            <th onclick="sortBy('expires_at')" style="cursor: pointer;">Expira <span id="sort-expires" class="sort-icon">↕️</span></th>
+                            <th onclick="sortBy('timeRemaining')" style="cursor: pointer;">Tiempo restante <span id="sort-time" class="sort-icon">↕️</span></th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
@@ -202,6 +257,9 @@
     <script>
         let adminToken = localStorage.getItem('adminToken') || '';
         let API_URL = '';
+        let allUsers = [];
+        let filteredUsers = [];
+        let currentSort = { field: 'id', order: 'asc' };
 
         function getApiUrl() {
             return window.location.origin;
@@ -228,60 +286,94 @@
             return `${days}D : ${hours.toString().padStart(2, '0')}H : ${minutes.toString().padStart(2, '0')}M : ${seconds.toString().padStart(2, '0')}S`;
         }
 
-        async function adminLogin() {
-            const email = document.getElementById('adminEmail').value;
-            const password = document.getElementById('adminPassword').value;
-            API_URL = getApiUrl();
-            
-            try {
-                const res = await fetch(`${API_URL}/api/admin/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
-                });
-                const data = await res.json();
-                
-                if (data.success) {
-                    adminToken = data.token;
-                    localStorage.setItem('adminToken', adminToken);
-                    showToast('✅ Login exitoso');
-                    loadDashboard();
-                } else {
-                    showToast('❌ ' + data.message, true);
-                }
-            } catch(e) {
-                showToast('❌ Error de conexión', true);
-            }
+        function getUserStatus(user) {
+            const isExpired = user.expires_at && new Date(user.expires_at).getTime() < Date.now();
+            const isBlocked = user.can_use_app !== 1;
+            if (isBlocked) return 'blocked';
+            if (isExpired) return 'expired';
+            return 'active';
         }
 
-        function adminLogout() {
-            localStorage.removeItem('adminToken');
-            adminToken = '';
-            document.getElementById('loginPanel').style.display = 'block';
-            document.getElementById('dashboard').style.display = 'none';
+        function filterAndRender() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const statusFilter = document.getElementById('statusFilter').value;
+            
+            filteredUsers = allUsers.filter(user => {
+                if (user.email === 'admin@smart.local') return false;
+                
+                // Filtrar por búsqueda
+                if (searchTerm && !user.email.toLowerCase().includes(searchTerm)) return false;
+                
+                // Filtrar por estado
+                const status = getUserStatus(user);
+                if (statusFilter !== 'all' && status !== statusFilter) return false;
+                
+                return true;
+            });
+            
+            // Ordenar
+            sortUsers();
+            
+            // Mostrar contador de filtros
+            const filterInfo = document.getElementById('filterInfo');
+            if (searchTerm || statusFilter !== 'all') {
+                filterInfo.textContent = `Mostrando ${filteredUsers.length} de ${allUsers.length} usuarios`;
+            } else {
+                filterInfo.textContent = '';
+            }
+            
+            renderUsers(filteredUsers);
         }
 
-        async function loadDashboard() {
-            if (!adminToken) return;
-            API_URL = getApiUrl();
-            
-            try {
-                const res = await fetch(`${API_URL}/api/admin/users`, {
-                    headers: { 'Authorization': `Bearer ${adminToken}` }
-                });
-                const data = await res.json();
-                
-                if (data.success) {
-                    document.getElementById('loginPanel').style.display = 'none';
-                    document.getElementById('dashboard').style.display = 'block';
-                    renderUsers(data.users);
-                } else {
-                    adminLogout();
-                }
-            } catch(e) {
-                console.error(e);
-                showToast('❌ Error cargando usuarios', true);
+        function sortBy(field) {
+            if (currentSort.field === field) {
+                currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.field = field;
+                currentSort.order = 'asc';
             }
+            
+            // Actualizar iconos
+            document.querySelectorAll('.sort-icon').forEach(icon => icon.textContent = '↕️');
+            const iconMap = { email: 'sort-email', expires_at: 'sort-expires', timeRemaining: 'sort-time' };
+            if (iconMap[field]) {
+                document.getElementById(iconMap[field]).textContent = currentSort.order === 'asc' ? '↑' : '↓';
+            }
+            
+            sortUsers();
+            renderUsers(filteredUsers);
+        }
+
+        function sortUsers() {
+            filteredUsers.sort((a, b) => {
+                let valA, valB;
+                switch(currentSort.field) {
+                    case 'email':
+                        valA = a.email;
+                        valB = b.email;
+                        break;
+                    case 'expires_at':
+                        valA = a.expires_at ? new Date(a.expires_at).getTime() : 0;
+                        valB = b.expires_at ? new Date(b.expires_at).getTime() : 0;
+                        break;
+                    case 'timeRemaining':
+                        valA = a.expires_at ? new Date(a.expires_at).getTime() : 0;
+                        valB = b.expires_at ? new Date(b.expires_at).getTime() : 0;
+                        break;
+                    default:
+                        valA = a.id;
+                        valB = b.id;
+                }
+                
+                if (currentSort.order === 'asc') return valA > valB ? 1 : -1;
+                else return valA < valB ? 1 : -1;
+            });
+        }
+
+        function resetFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('statusFilter').value = 'all';
+            filterAndRender();
         }
 
         function renderUsers(users) {
@@ -289,21 +381,21 @@
             tbody.innerHTML = '';
             
             users.forEach(user => {
-                if (user.email === 'admin@smart.local') return;
-                
                 const row = tbody.insertRow();
-                const isExpired = user.expires_at && new Date(user.expires_at).getTime() < Date.now();
-                const isBlocked = user.can_use_app !== 1;
-                let status = '';
-                if (isBlocked) status = '<span class="status-blocked">🔴 Bloqueado</span>';
-                else if (isExpired) status = '<span class="status-expired">⚠️ Expirado</span>';
-                else status = '<span class="status-active">🟢 Activo</span>';
+                const status = getUserStatus(user);
+                const isExpired = status === 'expired';
+                const isBlocked = status === 'blocked';
+                
+                let statusText = '';
+                if (isBlocked) statusText = '<span class="status-blocked">🔴 Bloqueado</span>';
+                else if (isExpired) statusText = '<span class="status-expired">⚠️ Expirado</span>';
+                else statusText = '<span class="status-active">🟢 Activo</span>';
                 
                 row.innerHTML = `
                     <td class="checkbox-col"><input type="checkbox" class="user-checkbox" data-email="${user.email}"></td>
                     <td>${user.id}</td>
                     <td>${user.email}</td>
-                    <td>${status}</td>
+                    <td>${statusText}</td>
                     <td>${user.device_id ? user.device_id.substring(0, 10)+'...' : '⚪ No vinculado'}</td>
                     <td>${user.expires_at ? new Date(user.expires_at).toLocaleDateString() : 'Sin fecha'}</td>
                     <td class="premium-time">${formatRemainingPremium(user.expires_at)}</td>
@@ -336,7 +428,6 @@
                 showToast('❌ No hay usuarios seleccionados', true);
                 return;
             }
-            
             if (!confirm(`¿Eliminar ${selected.length} usuario(s) permanentemente?`)) return;
             
             let deleted = 0;
@@ -359,14 +450,12 @@
                     failed++;
                 }
             }
-            
             showToast(`✅ Eliminados: ${deleted} | ❌ Fallaron: ${failed}`, failed > 0);
             loadDashboard();
         }
 
         async function deleteUser(email) {
             if (!confirm(`¿Eliminar al usuario ${email} permanentemente?`)) return;
-            
             try {
                 const res = await fetch(`${API_URL}/api/admin/delete-user`, {
                     method: 'DELETE',
@@ -388,18 +477,70 @@
             }
         }
 
+        async function adminLogin() {
+            const email = document.getElementById('adminEmail').value;
+            const password = document.getElementById('adminPassword').value;
+            API_URL = getApiUrl();
+            
+            try {
+                const res = await fetch(`${API_URL}/api/admin/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    adminToken = data.token;
+                    localStorage.setItem('adminToken', adminToken);
+                    showToast('✅ Login exitoso');
+                    loadDashboard();
+                } else {
+                    showToast('❌ ' + data.message, true);
+                }
+            } catch(e) {
+                showToast('❌ Error de conexión', true);
+            }
+        }
+
+        function adminLogout() {
+            localStorage.removeItem('adminToken');
+            adminToken = '';
+            document.getElementById('loginPanel').style.display = 'block';
+            document.getElementById('dashboard').style.display = 'none';
+        }
+
+        async function loadDashboard() {
+            if (!adminToken) return;
+            API_URL = getApiUrl();
+            try {
+                const res = await fetch(`${API_URL}/api/admin/users`, {
+                    headers: { 'Authorization': `Bearer ${adminToken}` }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    allUsers = data.users;
+                    filteredUsers = [...allUsers];
+                    document.getElementById('loginPanel').style.display = 'none';
+                    document.getElementById('dashboard').style.display = 'block';
+                    filterAndRender();
+                } else {
+                    adminLogout();
+                }
+            } catch(e) {
+                console.error(e);
+                showToast('❌ Error cargando usuarios', true);
+            }
+        }
+
         async function createUser() {
             const email = document.getElementById('newEmail').value;
             const password = document.getElementById('newPassword').value;
             const expiresInDays = parseInt(document.getElementById('expirationDays').value);
-            
             if (!email || !password) {
                 showToast('❌ Email y contraseña requeridos', true);
                 return;
             }
-            
             const expiresAt = new Date(Date.now() + expiresInDays * 24*60*60*1000).toISOString();
-            
             try {
                 const res = await fetch(`${API_URL}/api/admin/create-user`, {
                     method: 'POST',
@@ -410,7 +551,6 @@
                     body: JSON.stringify({ email, password, expiresAt })
                 });
                 const data = await res.json();
-                
                 if (data.success) {
                     showToast('✅ Usuario creado');
                     document.getElementById('newEmail').value = '';
