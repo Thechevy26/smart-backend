@@ -36,7 +36,7 @@ console.log("✅ Variables de entorno cargadas correctamente");
 // CONEXIÓN A POSTGRESQL (RAILWAY)
 // ============================================================
 const db = new Pool({
-    connectionString: process.env.DATABASE_URL,
+  connectionString: "postgresql://postgres:dxzttxOcyOwyYUDPJjsodibGoMFHVqeY@postgres.railway.internal:5432/railway",
 });
 
 // ============================================================
