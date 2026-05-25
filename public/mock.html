@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mock Offer</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f4f7;
+      padding: 18px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 18px;
+      padding: 18px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+    }
+
+    .pay {
+      font-size: 30px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .info {
+      font-size: 18px;
+      line-height: 1.6;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    button {
+      flex: 1;
+      padding: 14px;
+      border-radius: 12px;
+      border: none;
+      font-weight: bold;
+      font-size: 16px;
+    }
+
+    .reject {
+      background: #eeeeee;
+    }
+
+    .accept {
+      background: #0b5d7a;
+      color: white;
+    }
+
+    .accepted {
+      background: limegreen !important;
+      color: white !important;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="card">
+    <div class="pay">$8.64</div>
+
+    <div class="info">
+      3 paradas<br>
+      7.4 millas<br>
+      8274<br>
+      Recolección
+    </div>
+
+    <div class="buttons">
+      <button class="reject">
+        RECHAZAR
+      </button>
+
+      <button
+        class="accept"
+        onclick="
+          this.innerText='ACEPTADA';
+          this.classList.add('accepted');
+          document.body.style.background='#b8ffb8';
+        "
+      >
+        ACEPTAR
+      </button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="pay">$28.50</div>
+
+    <div class="info">
+      2 paradas<br>
+      7.2 millas<br>
+      8274<br>
+      Recolección
+    </div>
+
+    <div class="buttons">
+      <button class="reject">
+        RECHAZAR
+      </button>
+
+      <button
+        class="accept"
+        onclick="
+          this.innerText='ACEPTADA';
+          this.classList.add('accepted');
+          document.body.style.background='#b8ffb8';
+        "
+      >
+        ACEPTAR
+      </button>
+    </div>
+  </div>
+
+</body>
+</html>

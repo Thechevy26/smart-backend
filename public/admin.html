@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SDA Admin Panel</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #1a1a2e;  /* 🔥 COLOR ORIGINAL */
+    color: #eee;
+    padding: 20px;
+}
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        .login-box {
+            max-width: 400px;
+            margin: 100px auto;
+            background: #16213e;
+            padding: 30px;
+            border-radius: 12px;
+        }
+        .login-box input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: none;
+            background: #0f3460;
+            color: white;
+        }
+        .login-box button {
+            width: 100%;
+            padding: 12px;
+            background: #0f0;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .dashboard { display: none; }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .logout-btn {
+            background: #e94560;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .delete-selected-btn {
+            background: #dc3545;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            border: none;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .user-form {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        .user-form input, .user-form select {
+            padding: 10px;
+            margin: 5px 10px 5px 0;
+            border-radius: 6px;
+            border: none;
+            background: #0f3460;
+            color: white;
+        }
+        .user-form button {
+            padding: 10px 20px;
+            background: #0f0;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        table {
+            width: 100%;
+            background: #16213e;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #0f3460;
+        }
+        th { background: #0f3460; }
+        
+        .status-active { color: #0f0; }
+        .status-blocked { color: #f00; }
+        .status-expired { color: #ffa500; }
+        
+        button.action {
+            padding: 5px 10px;
+            margin: 2px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-block { background: #e94560; color: white; }
+        .btn-unblock { background: #0f0; color: black; }
+        .btn-reset { background: #ffa500; color: black; }
+        .btn-delete { background: #dc3545; color: white; }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #333;
+            padding: 12px 24px;
+            border-radius: 8px;
+            display: none;
+            z-index: 1000;
+        }
+        
+        .checkbox-col { width: 40px; text-align: center; }
+        input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+        
+        .action-bar { margin-bottom: 15px; display: flex; gap: 10px; align-items: center; }
+        
+        .premium-time { font-family: monospace; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="loginPanel" class="login-box">
+            <h2>🔐 Admin Login</h2>
+            <input type="email" id="adminEmail" placeholder="Email" value="admin@smart.local">
+            <input type="password" id="adminPassword" placeholder="Contraseña" value="Admin123456">
+            <button onclick="adminLogin()">Ingresar</button>
+        </div>
+
+        <div id="dashboard" class="dashboard">
+            <div class="header">
+                <h1>🎮 SDA - Panel de Control</h1>
+                <div>
+                    <button class="delete-selected-btn" onclick="deleteSelectedUsers()">🗑️ Eliminar seleccionados</button>
+                    <span class="logout-btn" onclick="adminLogout()">Cerrar Sesión</span>
+                </div>
+            </div>
+
+            <div class="user-form">
+                <h3>➕ Crear nuevo usuario</h3>
+                <input type="email" id="newEmail" placeholder="Email">
+                <input type="text" id="newPassword" placeholder="Contraseña">
+                <select id="expirationDays">
+                    <option value="1">1 día</option>
+                    <option value="7" selected>7 días</option>
+                    <option value="30">30 días</option>
+                    <option value="90">90 días</option>
+                    <option value="365">365 días</option>
+                </select>
+                <button onclick="createUser()">Crear Usuario</button>
+            </div>
+
+            <div class="action-bar">
+                <label style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll()">
+                    <strong>Seleccionar todos</strong>
+                </label>
+            </div>
+
+            <h3>📋 Usuarios registrados</h3>
+            <div style="overflow-x: auto;">
+                <table id="usersTable">
+                    <thead>
+                        <tr>
+                            <th class="checkbox-col">✓</th>
+                            <th>ID</th>
+                            <th>Email</th>
+                            <th>Estado</th>
+                            <th>Device ID</th>
+                            <th>Expira</th>
+                            <th>Tiempo restante</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersList"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        let adminToken = localStorage.getItem('adminToken') || '';
+        let API_URL = '';
+
+        function getApiUrl() {
+            return window.location.origin;
+        }
+
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.style.backgroundColor = isError ? '#e94560' : '#0f0';
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+        }
+
+        function formatRemainingPremium(expiresAt) {
+            if (!expiresAt) return 'Sin fecha';
+            const exp = new Date(expiresAt).getTime();
+            const now = Date.now();
+            if (exp < now) return 'EXPIRADA';
+            const diff = exp - now;
+            const days = Math.floor(diff / (1000*60*60*24));
+            const hours = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
+            const minutes = Math.floor((diff % (1000*60*60)) / (1000*60));
+            const seconds = Math.floor((diff % (1000*60)) / 1000);
+            return `${days}D : ${hours.toString().padStart(2, '0')}H : ${minutes.toString().padStart(2, '0')}M : ${seconds.toString().padStart(2, '0')}S`;
+        }
+
+        async function adminLogin() {
+            const email = document.getElementById('adminEmail').value;
+            const password = document.getElementById('adminPassword').value;
+            API_URL = getApiUrl();
+            
+            try {
+                const res = await fetch(`${API_URL}/api/admin/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    adminToken = data.token;
+                    localStorage.setItem('adminToken', adminToken);
+                    showToast('✅ Login exitoso');
+                    loadDashboard();
+                } else {
+                    showToast('❌ ' + data.message, true);
+                }
+            } catch(e) {
+                showToast('❌ Error de conexión', true);
+            }
+        }
+
+        function adminLogout() {
+            localStorage.removeItem('adminToken');
+            adminToken = '';
+            document.getElementById('loginPanel').style.display = 'block';
+            document.getElementById('dashboard').style.display = 'none';
+        }
+
+        async function loadDashboard() {
+            if (!adminToken) return;
+            API_URL = getApiUrl();
+            
+            try {
+                const res = await fetch(`${API_URL}/api/admin/users`, {
+                    headers: { 'Authorization': `Bearer ${adminToken}` }
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    document.getElementById('loginPanel').style.display = 'none';
+                    document.getElementById('dashboard').style.display = 'block';
+                    renderUsers(data.users);
+                } else {
+                    adminLogout();
+                }
+            } catch(e) {
+                console.error(e);
+                showToast('❌ Error cargando usuarios', true);
+            }
+        }
+
+        function renderUsers(users) {
+            const tbody = document.getElementById('usersList');
+            tbody.innerHTML = '';
+            
+            users.forEach(user => {
+                if (user.email === 'admin@smart.local') return;
+                
+                const row = tbody.insertRow();
+                const isExpired = user.expires_at && new Date(user.expires_at).getTime() < Date.now();
+                const isBlocked = user.can_use_app !== 1;
+                let status = '';
+                if (isBlocked) status = '<span class="status-blocked">🔴 Bloqueado</span>';
+                else if (isExpired) status = '<span class="status-expired">⚠️ Expirado</span>';
+                else status = '<span class="status-active">🟢 Activo</span>';
+                
+                row.innerHTML = `
+                    <td class="checkbox-col"><input type="checkbox" class="user-checkbox" data-email="${user.email}"></td>
+                    <td>${user.id}</td>
+                    <td>${user.email}</td>
+                    <td>${status}</td>
+                    <td>${user.device_id ? user.device_id.substring(0, 10)+'...' : '⚪ No vinculado'}</td>
+                    <td>${user.expires_at ? new Date(user.expires_at).toLocaleDateString() : 'Sin fecha'}</td>
+                    <td class="premium-time">${formatRemainingPremium(user.expires_at)}</td>
+                    <td>
+                        ${!isBlocked ? `<button class="action btn-block" onclick="blockUser('${user.email}')">Bloquear</button>` : `<button class="action btn-unblock" onclick="unblockUser('${user.email}')">Desbloquear</button>`}
+                        <button class="action btn-reset" onclick="resetDevice('${user.email}')">Reset Device</button>
+                        <button class="action btn-delete" onclick="deleteUser('${user.email}')">Eliminar</button>
+                    </td>
+                `;
+            });
+            
+            const selectAll = document.getElementById('selectAllCheckbox');
+            if (selectAll) selectAll.checked = false;
+        }
+
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('selectAllCheckbox');
+            const checkboxes = document.querySelectorAll('.user-checkbox');
+            checkboxes.forEach(cb => cb.checked = selectAll.checked);
+        }
+
+        function getSelectedUsers() {
+            const checkboxes = document.querySelectorAll('.user-checkbox:checked');
+            return Array.from(checkboxes).map(cb => cb.getAttribute('data-email'));
+        }
+
+        async function deleteSelectedUsers() {
+            const selected = getSelectedUsers();
+            if (selected.length === 0) {
+                showToast('❌ No hay usuarios seleccionados', true);
+                return;
+            }
+            
+            if (!confirm(`¿Eliminar ${selected.length} usuario(s) permanentemente?`)) return;
+            
+            let deleted = 0;
+            let failed = 0;
+            
+            for (const email of selected) {
+                try {
+                    const res = await fetch(`${API_URL}/api/admin/delete-user`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${adminToken}`
+                        },
+                        body: JSON.stringify({ email })
+                    });
+                    const data = await res.json();
+                    if (data.success) deleted++;
+                    else failed++;
+                } catch(e) {
+                    failed++;
+                }
+            }
+            
+            showToast(`✅ Eliminados: ${deleted} | ❌ Fallaron: ${failed}`, failed > 0);
+            loadDashboard();
+        }
+
+        async function deleteUser(email) {
+            if (!confirm(`¿Eliminar al usuario ${email} permanentemente?`)) return;
+            
+            try {
+                const res = await fetch(`${API_URL}/api/admin/delete-user`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${adminToken}`
+                    },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`✅ Usuario ${email} eliminado`);
+                    loadDashboard();
+                } else {
+                    showToast(`❌ Error: ${data.message}`, true);
+                }
+            } catch(e) {
+                showToast(`❌ Error al eliminar ${email}`, true);
+            }
+        }
+
+        async function createUser() {
+            const email = document.getElementById('newEmail').value;
+            const password = document.getElementById('newPassword').value;
+            const expiresInDays = parseInt(document.getElementById('expirationDays').value);
+            
+            if (!email || !password) {
+                showToast('❌ Email y contraseña requeridos', true);
+                return;
+            }
+            
+            const expiresAt = new Date(Date.now() + expiresInDays * 24*60*60*1000).toISOString();
+            
+            try {
+                const res = await fetch(`${API_URL}/api/admin/create-user`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${adminToken}`
+                    },
+                    body: JSON.stringify({ email, password, expiresAt })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    showToast('✅ Usuario creado');
+                    document.getElementById('newEmail').value = '';
+                    document.getElementById('newPassword').value = '';
+                    loadDashboard();
+                } else {
+                    showToast('❌ ' + data.message, true);
+                }
+            } catch(e) {
+                showToast('❌ Error', true);
+            }
+        }
+
+        async function blockUser(email) {
+            const res = await fetch(`${API_URL}/api/admin/block-user`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+                body: JSON.stringify({ email })
+            });
+            const data = await res.json();
+            showToast(data.message, !data.success);
+            loadDashboard();
+        }
+
+        async function unblockUser(email) {
+            const res = await fetch(`${API_URL}/api/admin/activate-user`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+                body: JSON.stringify({ email })
+            });
+            const data = await res.json();
+            showToast(data.message, !data.success);
+            loadDashboard();
+        }
+
+        async function resetDevice(email) {
+            const res = await fetch(`${API_URL}/api/admin/reset-device`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+                body: JSON.stringify({ email })
+            });
+            const data = await res.json();
+            showToast(data.message, !data.success);
+            loadDashboard();
+        }
+
+        if (localStorage.getItem('adminToken')) {
+            adminToken = localStorage.getItem('adminToken');
+            loadDashboard();
+        }
+    </script>
+</body>
+</html>
